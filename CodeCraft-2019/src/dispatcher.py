@@ -282,6 +282,7 @@ def loadCarData(car_path):
     Cars = sorted(Cars.items(), key=(lambda x: x[1][0]), reverse=False)
     # 再次按照终点路口ID升序排序
     Cars.sort(key=lambda x: x[1][1], reverse=False)
+
     # 然后再按照出发时间升序排序
     Cars.sort(key=lambda x: x[1][3], reverse=False)
     # 再次按照最高速度降序排序
@@ -364,14 +365,16 @@ def driveCar2():
     Cars = loadCarData(car_path)
     # 构建路口-道路有向图
     graph, Roads = creatGraph()
-    # 初始化车辆字典，最后构建id:carInstance
-    carInRoadList = {}
+    # 初始化车辆列表
+    carInRoadList = []
     # 同时发车数量
     simultaneousCarNum = 0
     # 参数列表key = speed
-    parmDict = {1: (1, 50), 2: (1, 50), 3: (1, 50), 4: (1, 50), 5: (
-        1, 50), 6: (2, 50), 7: (3, 50), 8: (3, 50), 9: (3, 50)}
+    parmDict = {1: (1, 40), 2: (1, 40), 3: (1, 50), 4: (2, 50), 5: (
+        2, 50), 6: (2, 50), 7: (2, 50), 8: (3, 60), 9: (3, 60)}
 
+    # parmDict = {1: (1, 30), 2: (1, 60), 3: (1, 78), 4: (2, 104), 5: (
+    # 2, 91.5), 6: (2, 109.8), 7: (2, 128.1), 8: (3, 146.4), 9: (3, 164.7)}
     # 记录发车数量
     lanchCarNum = 0
     # 时间片初始化
@@ -403,16 +406,17 @@ def driveCar2():
                 # 当前车辆上去之后，动态更新边数据
                 currentRoadEdge += 1 * 1.0 / \
                     (currentRoad.length * currentRoad.lanes * currentRoad.maxSpeed)
+                # 更新图的边数据
                 currentRoad.updateEdgeData(
                     currentRoadEdgeId, currentRoadEdge, graph)
 
         # 保存这些车辆的信息
-        carInRoadList[car.id] = car
+        carInRoadList.append(car)
         # 清空最短节点标号缓存区
         nodeList.clear()
 
     # 进行发车，上路，安排出发时间
-    for (carId, car) in carInRoadList.items():
+    for car in carInRoadList:
         # 得到发车数量
         simultaneousCarNum = parmDict.get(car.maxSpeed)[1]
 
@@ -454,9 +458,9 @@ def driveCar():
     # 同时发车数量
     simultaneousCarNum = 20
     # 初始化同时从车库出发的车辆列表
-    wait2LanchCarList = {}
+    wait2LanchCarList = []
     # 初始化当前道路的车辆列表
-    carInRoadList = {}
+    carInRoadList = []
     # 记录当前车辆列表的最晚出发时间
     lastDepartureTime = timeIndex
     # 记录已经行驶结束的车辆索引
@@ -502,10 +506,10 @@ def driveCar():
                 car.remainRoad = Roads.get(thisRoadId).length
 
                 # 保存这些车辆的信息
-                wait2LanchCarList[car.id] = car
+                wait2LanchCarList.append(car)
 
             # 初始化道路上的车辆
-            carInRoadList.update(wait2LanchCarList)
+            carInRoadList.copy()
             # 清空缓存区
             wait2LanchCarList.clear()
 
@@ -514,7 +518,7 @@ def driveCar():
             timeIndex = timeIndex + 1
 
         # 让路上的车继续跑着
-        for (carId, car) in carInRoadList.items():
+        for car in carInRoadList:
             # 更新当前车辆的出发时间
             if len(car.pathList) == 1:
                 car.updateActualTime(timeIndex)
@@ -554,7 +558,7 @@ def driveCar():
                     # 所有道路走完之后，将结果输出
                     car.printPath(answer_path)
                     # 记录需要移除的车辆标号
-                    carRemoveIndexList.append(carId)
+                    carRemoveIndexList.append(car.id)
                     # 更新当前道路的路况信息
                     Roads.get(thisRoadId).capacity = Roads.get(
                         thisRoadId).capacity - 1
@@ -644,6 +648,7 @@ def mainLoop(carPath, roadPath, crossPath, answerPath):
 
     # 开始进行调度
     driveCar2()
+    # driveCar()
 
 if __name__ == "__main__":
     mainLoop('../config/car.txt', '../config/road.txt',
