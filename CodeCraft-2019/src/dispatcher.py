@@ -29,7 +29,7 @@ class Road():
         # 当前道路存在的车辆数
         self.capacity = 1
 
-    def getEdgeData(self):
+    def calcInitEdgeData(self):
         '''
             此函数旨在得到一个合适的权重（节点A到节点B）数值，目的应用最短路径算法
             @return edgeData：返回得到的权重值
@@ -47,11 +47,11 @@ class Road():
 
         return edgeData
 
-    def getDynamicEdgeData(self):
+    def calcDynamicEdgeData(self):
         '''
             此函数用于动态计算道路的权重值，根据当前道路的车辆数目
         '''
-        staticEdgeData = self.getEdgeData()
+        staticEdgeData = self.calcInitEdgeData()
 
         dynamicEdgeData_MAX = (self.length * self.lanes) / 1
         dynamicEdgeData_MIN = 1
@@ -59,6 +59,34 @@ class Road():
                            dynamicEdgeData_MIN) / (dynamicEdgeData_MAX - dynamicEdgeData_MIN)
 
         return (0.6*dynamicEdgeData + 0.4*staticEdgeData)
+
+    def getEdgeId(self, head, tail, graph):
+        '''
+            此函数用于得到道路的ID
+        '''
+        # 得到边ID号
+        edgeId = graph.edge_by_node(head, tail)
+
+        return edgeId
+
+    def getcurrentEdgeData(self, edgeId, graph):
+        '''
+            此函数用于得到道路的边数据
+        '''
+        # 得到当前道路的边数据
+        edgeData = graph.edge_data(edgeId)
+
+        return edgeData
+
+    def updateEdgeData(self, edgeId, edgeData, graph):
+        '''
+            此函数在于重新更新节点数据
+        '''
+        try:
+            # 更新边数据
+            graph.update_edge_data(edgeId, edgeData)
+        except KeyError as identifier:
+            pass
 
     def creatNode(self):
         '''
@@ -68,7 +96,9 @@ class Road():
         '''
         nodeList = []
         # 得到边数据
-        edgeData = self.getEdgeData()
+        edgeData = self.calcInitEdgeData()
+        # 先给出一个特别小的初始边权重，将每一条路看为一致的
+        # edgeData = 0.001
         nodeList.append(tuple([self.start, self.end, edgeData]))
         # 判断道路是否是双向的，如果是双向的道路则，节点列表应该增加一个
         if self.isBipolar == 1:
@@ -77,18 +107,6 @@ class Road():
             pass
 
         return nodeList
-
-    def updateEdgeData(self, head, tail, edgeData, graph):
-        '''
-            此函数在于重新更新节点数据
-        '''
-        # 得到边ID号
-        edgeId = graph.edge_by_node(head, tail)
-        try:
-            # 更新边数据
-            graph.update_edge_data(edgeId, edgeData)
-        except KeyError as identifier:
-            pass
 
 
 class Car():
@@ -111,8 +129,10 @@ class Car():
         self.previousCross = self.originCross
         # 车辆的下一个路口，仅为了判断是否会在此时间片内超出本路口
         self.nextCross = self.originCross
+        # 车辆计划出发时间
+        self.planTime = carInfo[1][3]
         # 车辆实际出发时间
-        self.actualTime = carInfo[1][3]
+        self.actualTime = self.planTime
         # 车辆的实际速度
         self.actualSpeed = carInfo[1][2]
         # 车辆本条道路的剩余长度
@@ -257,10 +277,22 @@ def loadCarData(car_path):
         Cars.update(Car)
         Car = next(reader)
 
-    # 首先按照计划出发时间进行排序，排序后变为元组
-    Cars = sorted(Cars.items(), key=lambda x: x[1][3], reverse=False)
-    # 再次按照最高速度进行排序，排序后转换为列表
+    # 发车策略*************************************************
+    # 首先按照出发路口ID升序排序
+    Cars = sorted(Cars.items(), key=(lambda x: x[1][0]), reverse=False)
+    # 再次按照终点路口ID升序排序
+    Cars.sort(key=lambda x: x[1][1], reverse=False)
+    # 然后再按照出发时间升序排序
+    Cars.sort(key=lambda x: x[1][3], reverse=False)
+    # 再次按照最高速度降序排序
     Cars.sort(key=lambda x: x[1][2], reverse=True)
+
+    # i = 0
+    # for car in Cars:
+    #     print(car)
+    #     i = i + 1
+    #     if i == 1000:
+    #         break
 
     return Cars
 
@@ -318,9 +350,92 @@ def creatGraph():
     return graph, Roads
 
 
+def driveCar2():
+    '''
+        此函数是按照一定的发车方式，上路进行奔跑
+    '''
+
+    Cars = []
+    Roads = {}
+
+    # 载入路口信息
+    Crosses = loadCrossData(cross_path)
+    # 载入汽车的数据
+    Cars = loadCarData(car_path)
+    # 构建路口-道路有向图
+    graph, Roads = creatGraph()
+    # 初始化车辆字典，最后构建id:carInstance
+    carInRoadList = {}
+    # 同时发车数量
+    simultaneousCarNum = 0
+    # 参数列表key = speed
+    parmDict = {1: (1, 50), 2: (1, 50), 3: (1, 50), 4: (1, 50), 5: (
+        1, 50), 6: (2, 50), 7: (3, 50), 8: (3, 50), 9: (3, 50)}
+
+    # 记录发车数量
+    lanchCarNum = 0
+    # 时间片初始化
+    timeIndex = 0
+
+    # 得到车辆的最短路径，并动态预更新路况信息
+    for carIndex in range(0, len(Cars)):
+        currentCar = Cars[carIndex]
+        # 创建当前汽车实例
+        car = Car(currentCar)
+        # 找出最短路径的路口标号（并取出第一条道路）
+        nodeList = GraphAlgo.shortest_path(
+            graph, car.originCross, car.terminalCross)
+        # 将最短路径填入到汽车路径列表中
+        for nodeIndex in range(0,len(nodeList)-1):
+            # 得到当前道路名
+            currentRoadId = getRoadId(nodeList[nodeIndex], nodeList[nodeIndex + 1], Crosses)[0]
+            # 将该道路填入至car对应的pathList中去
+            car.pathList.append(currentRoadId)
+            # 获取当前道路的实例
+            currentRoad = Roads.get(currentRoadId)
+            # 获取当前道路的边ID
+            currentRoadEdgeId = currentRoad.getEdgeId(
+                nodeList[nodeIndex], nodeList[nodeIndex + 1], graph)
+            if currentRoadEdgeId:
+                # 获取当前道路的边数据
+                currentRoadEdge = currentRoad.getcurrentEdgeData(
+                    currentRoadEdgeId, graph)
+                # 当前车辆上去之后，动态更新边数据
+                currentRoadEdge += 1 * 1.0 / \
+                    (currentRoad.length * currentRoad.lanes * currentRoad.maxSpeed)
+                currentRoad.updateEdgeData(
+                    currentRoadEdgeId, currentRoadEdge, graph)
+
+        # 保存这些车辆的信息
+        carInRoadList[car.id] = car
+        # 清空最短节点标号缓存区
+        nodeList.clear()
+
+    # 进行发车，上路，安排出发时间
+    for (carId, car) in carInRoadList.items():
+        # 得到发车数量
+        simultaneousCarNum = parmDict.get(car.maxSpeed)[1]
+
+        lanchCarNum += 1
+        # 如果当前时间片发车数量累计到同时发车数量，则更新该时间片，并动态的先让路上的车多跑出几个时间片的距离
+        if lanchCarNum >= simultaneousCarNum:
+            timeIndex += parmDict[car.maxSpeed][0]
+            # 清空当前的车辆累计缓存
+            lanchCarNum = 0
+
+        # 判断出发时间是否早于计划出发时间
+        if car.planTime > timeIndex:
+            timeIndex = car.planTime
+        # 更新车辆的实际出发时间
+        car.updateActualTime(timeIndex)
+        # 输出当前车辆的路径规划信息
+        car.printPath(answer_path)
+
+
 def driveCar():
     '''
         此程序是进行车辆发车程序，期望达到时间片不停的转动，道路为主，车辆为辅
+        此程序主要期望动态的找到最短路径
     '''
     Cars = []
     Roads = {}
@@ -357,16 +472,15 @@ def driveCar():
                 # 索引检测
                 if remainCar in range(simultaneousCarNum, len(Cars) + 1):
                     currentCar = Cars[len(Cars) - remainCar + carIndex]
-                
 
                 # 创建当前车辆汽车的实例
-                car=Car(currentCar)
+                car = Car(currentCar)
                 # 记录当前车辆的最晚时间
                 if car.actualTime > lastDepartureTime:
-                    lastDepartureTime=car.actualTime
+                    lastDepartureTime = car.actualTime
 
                 # 找出最短路径的路口标号（并取出第一条道路）
-                nodeList=GraphAlgo.shortest_path(
+                nodeList = GraphAlgo.shortest_path(
                     graph, car.originCross, car.terminalCross)
 
                 # 记录刚刚经过的路口
@@ -380,12 +494,13 @@ def driveCar():
                 nodeList.clear()
 
                 # 得到即将要走的第一条路
-                thisRoadId=getRoadId(car.previousCross, car.originCross, Crosses)[0]
+                thisRoadId = getRoadId(
+                    car.previousCross, car.originCross, Crosses)[0]
                 # 保存将要行驶的此条道路
                 car.updatePathList(thisRoadId)
                 # 保存当前道路行驶的剩余长度
-                car.remainRoad=Roads.get(thisRoadId).length
-               
+                car.remainRoad = Roads.get(thisRoadId).length
+
                 # 保存这些车辆的信息
                 wait2LanchCarList[car.id] = car
 
@@ -396,27 +511,27 @@ def driveCar():
 
         # 如果车辆计划出发时间满足上路要求，则开始让车上路
         while timeIndex < lastDepartureTime:
-            timeIndex=timeIndex + 1
+            timeIndex = timeIndex + 1
 
         # 让路上的车继续跑着
-        for (carId,car) in carInRoadList.items():
+        for (carId, car) in carInRoadList.items():
             # 更新当前车辆的出发时间
             if len(car.pathList) == 1:
                 car.updateActualTime(timeIndex)
             # 得到当前道路的ID号
-            thisRoadId=car.pathList[len(car.pathList) - 1]
+            thisRoadId = car.pathList[len(car.pathList) - 1]
             # 得到下一条道路的ID号
-            nextRoadId=getRoadId(car.originCross, car.nextCross, Crosses)[0]
+            nextRoadId = getRoadId(car.originCross, car.nextCross, Crosses)[0]
 
             # 得到当前道路对应的信息，是一个Road的实例
-            thisRoad=Roads.get(thisRoadId)
+            thisRoad = Roads.get(thisRoadId)
             # nextRoad = Roads.get(nextRoadId[0])
 
             # 更新当前道路的路况信息
-            Roads.get(thisRoadId).capacity=Roads.get(
+            Roads.get(thisRoadId).capacity = Roads.get(
                 thisRoadId).capacity + 1
             # 得到最新的边数据
-            edgeData=Roads.get(thisRoadId).getDynamicEdgeData()
+            edgeData = Roads.get(thisRoadId).getDynamicEdgeData()
             # 更新边权重
             Roads.get(thisRoadId).updateEdgeData(
                 car.previousCross, car.originCross, edgeData, graph)
@@ -425,7 +540,7 @@ def driveCar():
             car.upadteActualSpeed(min(thisRoad.maxSpeed, car.maxSpeed))
 
             # 计算剩余道路长度
-            car.remainRoad=car.remainRoad - car.actualSpeed * 1
+            car.remainRoad = car.remainRoad - car.actualSpeed * 1
 
             # 判断剩余道路的不同情况
             # 已经到达路口，或是下一时间片将到达路口
@@ -433,7 +548,7 @@ def driveCar():
             if (car.remainRoad == 0) or (car.remainRoad < car.actualSpeed):
                 # 判断是否是最后一条道路
                 if (car.nextCross == car.terminalCross):
-                    if car.pathList[len(car.pathList)-1] != nextRoadId: 
+                    if car.pathList[len(car.pathList)-1] != nextRoadId:
                         # 将最后一条路径加入进去
                         car.updatePathList(nextRoadId)
                     # 所有道路走完之后，将结果输出
@@ -441,15 +556,15 @@ def driveCar():
                     # 记录需要移除的车辆标号
                     carRemoveIndexList.append(carId)
                     # 更新当前道路的路况信息
-                    Roads.get(thisRoadId).capacity=Roads.get(
-                        thisRoadId).capacity -1
+                    Roads.get(thisRoadId).capacity = Roads.get(
+                        thisRoadId).capacity - 1
                     # 进行下一车辆轮询
                     continue
 
                 # 如果不是最后一条道路，则重新寻找最短路径
                 else:
                     # 找出最短路径的路口标号（并取出第一条道路）
-                    nodeList=GraphAlgo.shortest_path(
+                    nodeList = GraphAlgo.shortest_path(
                         graph, car.originCross, car.terminalCross)
 
                     # 记录刚刚经过的路口
@@ -463,18 +578,19 @@ def driveCar():
                         car.upadteNextCross(car.terminalCross)
 
                     # 得到即将要走的第一条路
-                    thisRoadId=getRoadId(car.previousCross, car.originCross, Crosses)[0]
+                    thisRoadId = getRoadId(
+                        car.previousCross, car.originCross, Crosses)[0]
                     if car.pathList[len(car.pathList) - 1] != thisRoadId:
                         # 保存将要行驶的此条道路
                         car.updatePathList(thisRoadId)
                     # 保存当前道路行驶的剩余长度
-                    car.remainRoad=Roads.get(thisRoadId).length
-                    
+                    car.remainRoad = Roads.get(thisRoadId).length
+
                     # 更新当前道路的路况信息
-                    Roads.get(thisRoadId).capacity=Roads.get(
+                    Roads.get(thisRoadId).capacity = Roads.get(
                         thisRoadId).capacity + 1
                     # 得到最新的边数据
-                    edgeData=Roads.get(thisRoadId).getDynamicEdgeData()
+                    edgeData = Roads.get(thisRoadId).getDynamicEdgeData()
                     # 更新边权重
                     Roads.get(thisRoadId).updateEdgeData(
                         car.previousCross, car.originCross, edgeData, graph)
@@ -495,13 +611,13 @@ def driveCar():
             pass
 
         # 时间片更新
-        timeIndex=timeIndex + 1
+        timeIndex = timeIndex + 1
 
         # 车库车辆信息更新
-        remainCar=remainCar - simultaneousCarNum
+        remainCar = remainCar - simultaneousCarNum
         if remainCar <= 0:
-            remainCar =0
-        
+            remainCar = 0
+
         # print('当前时间片：%d    车库剩余车辆：%d     道路上的剩余车辆：%d'%(timeIndex,remainCar,len(carInRoadList)))
 
         # 如果车库和道路上没有车辆，则循环停止
@@ -509,7 +625,7 @@ def driveCar():
             break
 
     # 时间片计数器清零
-    timeIndex=1
+    timeIndex = 1
 
 
 def mainLoop(carPath, roadPath, crossPath, answerPath):
@@ -521,14 +637,13 @@ def mainLoop(carPath, roadPath, crossPath, answerPath):
     global cross_path
     global answer_path
 
-    car_path=carPath
-    road_path=roadPath
-    cross_path=crossPath
-    answer_path=answerPath
+    car_path = carPath
+    road_path = roadPath
+    cross_path = crossPath
+    answer_path = answerPath
 
     # 开始进行调度
-    driveCar()
-
+    driveCar2()
 
 if __name__ == "__main__":
     mainLoop('../config/car.txt', '../config/road.txt',
