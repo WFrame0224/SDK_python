@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-
 from altgraph import Graph, GraphAlgo
 
 # 定义文件目录的全局变量
@@ -35,9 +34,9 @@ class Road():
             @return edgeData：返回得到的权重值
         '''
         # 先输入速度、道路长度、车道数目的上下限
-        SPEED_MAX, SPEED_MIN = 8, 2
-        LENGTH_MAX, LENGTH_MIN = 20, 6
-        LANES_MAX, LANES_MIN = 5, 1
+        SPEED_MAX, SPEED_MIN = 15, 4
+        LENGTH_MAX, LENGTH_MIN = 60, 8
+        LANES_MAX, LANES_MIN = 4, 1
         # 给出速度、长度、车道数目的权重分别是：0.5,0.4,0.1，后面在增加动态的道路车辆数，再进行改善
         wSpeed, wLength, wLanes = 0.6, 0.3, 0.1
         # 按照三者不同的权重，利用线性归一化函数计算出边权重数值
@@ -278,8 +277,9 @@ def loadCarData(car_path):
         Car = next(reader)
 
     # 发车策略*************************************************
-    # 首先按照出发路口ID升序排序
     Cars = sorted(Cars.items(), key=(lambda x: x[1][0]), reverse=False)
+
+    # Cars = sorted(Cars.items(), key=(lambda x: x[1][1]), reverse=False)
     # 再次按照终点路口ID升序排序
     Cars.sort(key=lambda x: x[1][1], reverse=False)
 
@@ -370,11 +370,9 @@ def driveCar2():
     # 同时发车数量
     simultaneousCarNum = 0
     # 参数列表key = speed
-    parmDict = {1: (1, 40), 2: (1, 40), 3: (1, 50), 4: (2, 50), 5: (
-        2, 50), 6: (2, 50), 7: (2, 50), 8: (3, 60), 9: (3, 60)}
+    parmDict = {4: (1, 48), 5: (2, 50), 6: (2, 100), 8: (3, 150), 
+                10: (4, 180), 12: (5, 240), 14: (6, 290), 15: (7, 180), 16: (7, 300)}
 
-    # parmDict = {1: (1, 30), 2: (1, 60), 3: (1, 78), 4: (2, 104), 5: (
-    # 2, 91.5), 6: (2, 109.8), 7: (2, 128.1), 8: (3, 146.4), 9: (3, 164.7)}
     # 记录发车数量
     lanchCarNum = 0
     # 时间片初始化
@@ -389,13 +387,18 @@ def driveCar2():
         nodeList = GraphAlgo.shortest_path(
             graph, car.originCross, car.terminalCross)
         # 将最短路径填入到汽车路径列表中
-        for nodeIndex in range(0,len(nodeList)-1):
+        for nodeIndex in range(0, len(nodeList)-1):
             # 得到当前道路名
-            currentRoadId = getRoadId(nodeList[nodeIndex], nodeList[nodeIndex + 1], Crosses)[0]
+            currentRoadId = getRoadId(
+                nodeList[nodeIndex], nodeList[nodeIndex + 1], Crosses)[0]
             # 将该道路填入至car对应的pathList中去
             car.pathList.append(currentRoadId)
             # 获取当前道路的实例
             currentRoad = Roads.get(currentRoadId)
+
+            # 更新当前道路的车的数量
+            currentRoad.capacity += 1
+
             # 获取当前道路的边ID
             currentRoadEdgeId = currentRoad.getEdgeId(
                 nodeList[nodeIndex], nodeList[nodeIndex + 1], graph)
@@ -406,6 +409,10 @@ def driveCar2():
                 # 当前车辆上去之后，动态更新边数据
                 currentRoadEdge += 1 * 1.0 / \
                     (currentRoad.length * currentRoad.lanes * currentRoad.maxSpeed)
+
+                # # 获取当前的动态数据
+                # currentRoadEdge += currentRoad.calcDynamicEdgeData()
+
                 # 更新图的边数据
                 currentRoad.updateEdgeData(
                     currentRoadEdgeId, currentRoadEdge, graph)
@@ -650,6 +657,6 @@ def mainLoop(carPath, roadPath, crossPath, answerPath):
     driveCar2()
     # driveCar()
 
+
 if __name__ == "__main__":
-    mainLoop('../config/car.txt', '../config/road.txt',
-             '../config/cross.txt', '../config/answer.txt')
+    mainLoop('../config2/car.txt', '../config2/road.txt', '../config2/cross.txt', '../config2/answer.txt')

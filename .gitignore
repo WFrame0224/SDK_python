@@ -3,4 +3,6 @@
 *.sh
 *.tar.gz
 logs/
-CodeCraft-2019/config/**/
+**/config1/
+**/config2/
+**/logs/
