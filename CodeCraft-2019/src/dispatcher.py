@@ -277,12 +277,10 @@ def loadCarData(car_path):
         Car = next(reader)
 
     # 发车策略*************************************************
+    # 首先按照起点路口ID进行排序
     Cars = sorted(Cars.items(), key=(lambda x: x[1][0]), reverse=False)
-
-    # Cars = sorted(Cars.items(), key=(lambda x: x[1][1]), reverse=False)
     # 再次按照终点路口ID升序排序
     Cars.sort(key=lambda x: x[1][1], reverse=False)
-
     # 然后再按照出发时间升序排序
     Cars.sort(key=lambda x: x[1][3], reverse=False)
     # 再次按照最高速度降序排序
@@ -424,7 +422,7 @@ def driveCar2():
 
     # 进行发车，上路，安排出发时间
     for car in carInRoadList:
-        # 得到发车数量
+        # 得到当前速度对应的发车数量
         simultaneousCarNum = parmDict.get(car.maxSpeed)[1]
 
         lanchCarNum += 1
