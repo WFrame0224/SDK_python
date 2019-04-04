@@ -1,12 +1,10 @@
-# SDK_python
-
 * * *
 
 本项目是华为2019年软件精英挑战赛的[初赛题目](https://codecraft.huawei.com/Generaldetail)的实现，初赛排名**西北赛区 41 名**
 
 * * *
-
-## 运行说明
+@toc
+## 1. 运行说明
 
 - 使用语言 python 3.5
 - 采用的是 Ubuntu 18.04.2
@@ -16,14 +14,14 @@
   - `python CodeCraft-2019.py ../config/car.txt ../config/road.txt ../config/cross.txt ../config/answer.txt`  
   - `python dispatcher.py`
 
-## 程序数据结构
+## 2. 程序数据结构
 
 ![数据结构](docs/%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png)
 上图所示为代码所用的数据结构
 
-## 程序文档说明
+## 3. 程序文档说明
 
-### 程序函数说明
+### 3.1 程序函数说明
 
 - `strListToIntList(srcStr)`   strList转换为intList,方便后面的操作
 - `loadData(filePath)`  用于载入数据的函数生成器，调用一次返回一行数据
@@ -34,7 +32,7 @@
 - `creatGraph()`  函数用于构建一基本路口道路有向图
 - `driveCar2()`  此函数是按照一定的发车方式，上路进行奔跑
 
-### 程序逻辑简要说明
+### 3.2 程序逻辑简要说明
 
 - _注_：程序并未实现==调度器==，或者是==判题器==，实际上式找了捷径，优化发车策略（调参）进行最大程度地避免死锁现象的发生
 - 程序主要执行逻辑如下图所示：
