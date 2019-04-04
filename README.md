@@ -1,9 +1,12 @@
 * * *
 
 本项目是华为2019年软件精英挑战赛的[初赛题目](https://codecraft.huawei.com/Generaldetail)的实现，初赛排名**西北赛区 41 名**
+[项目地址：https://github.com/WFrame0224/SDK_python](https://github.com/WFrame0224/SDK_python)
 
 * * *
+
 @toc
+
 ## 1. 运行说明
 
 - 使用语言 python 3.5
